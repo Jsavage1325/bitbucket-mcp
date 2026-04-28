@@ -1,0 +1,35 @@
+[project]
+name = "bitbucket-mcp-server"
+version = "0.1.0"
+description = "Bitbucket MCP server for Claude Code and AI agents"
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=2.0",
+    "bitbucket-sdk @ git+https://github.com/jsavage1325/bitbucket-sdk.git",
+]
+
+[project.scripts]
+bitbucket-mcp-server = "bitbucket_mcp.server:main"
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "S", "C90", "SIM", "PL", "RUF"]
+ignore = [
+    "S101",    # allow assert in tests
+    "PLR0913", # MCP tool signatures map directly to API params; many args are expected
+]

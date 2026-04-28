@@ -1,0 +1,25 @@
+image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+
+pipelines:
+  pull-requests:
+    '**':
+      - step:
+          name: Quality Checks
+          caches: [uv]
+          script:
+            - uv run ruff check src tests
+            - uv run ruff format --check src tests
+            - uv run pytest tests/unit -q
+            - uv run pip-audit
+
+  branches:
+    main:
+      - step:
+          name: Quality Checks + Build
+          caches: [uv]
+          script:
+            - uv run ruff check src tests
+            - uv run ruff format --check src tests
+            - uv run pytest tests/ -q
+            - uv run pip-audit
+            - uv build
