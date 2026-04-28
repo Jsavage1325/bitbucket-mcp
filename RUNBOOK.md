@@ -100,3 +100,4 @@ asyncio.run(main())
 | `AuthenticationError` on API call | Token expired or revoked | Generate a new token at Bitbucket → Personal settings → App passwords |
 | `RateLimitError` | Exceeded 1,000 req/hr | Wait for the rate limit window to reset (~1 hr) |
 | `NotFoundError` on a known repo | Wrong workspace or repo slug | Check workspace/repo slugs match Bitbucket exactly |
+# Smoke test change
