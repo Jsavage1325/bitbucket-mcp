@@ -18,8 +18,14 @@ def _resolve_auth_kwargs() -> dict:
     # bb stores OAuth tokens in tokens.json (used by both oauth and apitoken auth methods)
     tokens_path = bb_dir / "tokens.json"
     if tokens_path.exists():
-        token = json.loads(tokens_path.read_text()).get("access_token")
+        data = json.loads(tokens_path.read_text())
+        token = data.get("access_token")
+        token_type = data.get("token_type", "")
         if token:
+            # bb stores apitoken auth as "email:api_token" — split for Basic Auth
+            if token_type == "apitoken" and ":" in token:
+                email, api_token = token.split(":", 1)
+                return {"email": email, "api_token": api_token}
             return {"access_token": token}
     # legacy: older bb versions stored the password directly in config.toml
     config_path = bb_dir / "config.toml"

@@ -5,7 +5,7 @@ import dataclasses
 from datetime import datetime
 from typing import Any
 
-from bitbucket_sdk import BitbucketClient
+from bitbucket_sdk import BitbucketClient, NotFoundError
 from fastmcp import FastMCP
 
 from .auth import _resolve_auth_kwargs
@@ -51,7 +51,10 @@ def get_open_pr(workspace: str, repo: str, branch: str | None = None) -> dict | 
     """Return the open PR for the given branch, or None if no open PR exists.
     Detects the current git branch when branch is omitted.
     """
-    return _serialise(_client.pull_requests.get_open(workspace, repo, branch))
+    try:
+        return _serialise(_client.pull_requests.get_open(workspace, repo, branch))
+    except NotFoundError:
+        return None
 
 
 @mcp.tool()
@@ -160,6 +163,15 @@ def create_pr(
     )
 
 
+def _normalise_range(spec: str) -> str:
+    # Bitbucket's diff API treats 'a..b' as "what a adds over b" — the reverse of git
+    # convention. Swap so callers can use the natural git order (old..new).
+    if "..." not in spec and ".." in spec:
+        left, right = spec.split("..", 1)
+        return f"{right}..{left}"
+    return spec
+
+
 @mcp.tool()
 def get_commit_diff(workspace: str, repo: str, commits: str | list[str]) -> str:
     """Return the unified diff for one or more commits.
@@ -173,7 +185,7 @@ def get_commit_diff(workspace: str, repo: str, commits: str | list[str]) -> str:
             parts.append(f"--- commit {c} ---")
             parts.append(_client.repositories.get_commit_diff(workspace, repo, c))
         return "\n".join(parts)
-    return _client.repositories.get_commit_diff(workspace, repo, commits)
+    return _client.repositories.get_commit_diff(workspace, repo, _normalise_range(commits))
 
 
 def main() -> None:

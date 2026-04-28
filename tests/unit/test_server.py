@@ -3,6 +3,7 @@ from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
+from bitbucket_sdk import NotFoundError
 
 from bitbucket_mcp import server
 
@@ -133,6 +134,11 @@ class TestTools:
         self._mock.pull_requests.get_open.return_value = None
         result = server.get_open_pr("ws", "repo", branch="feature/x")
         self._mock.pull_requests.get_open.assert_called_once_with("ws", "repo", "feature/x")
+        assert result is None
+
+    def test_get_open_pr_not_found_returns_none(self):
+        self._mock.pull_requests.get_open.side_effect = NotFoundError("no open PRs found")
+        result = server.get_open_pr("ws", "repo")
         assert result is None
 
     def test_get_pr(self):
