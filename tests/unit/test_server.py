@@ -71,6 +71,21 @@ class TestSerialise:
         assert [r["slug"] for r in result] == ["a", "b"]
 
 
+class TestResolveWorkspace:
+    def test_explicit_arg_takes_priority(self, monkeypatch):
+        monkeypatch.setenv("BITBUCKET_WORKSPACE", "env-ws")
+        assert server._resolve_workspace("arg-ws") == "arg-ws"
+
+    def test_falls_back_to_env_var(self, monkeypatch):
+        monkeypatch.setenv("BITBUCKET_WORKSPACE", "env-ws")
+        assert server._resolve_workspace(None) == "env-ws"
+
+    def test_raises_when_neither_provided(self, monkeypatch):
+        monkeypatch.delenv("BITBUCKET_WORKSPACE", raising=False)
+        with pytest.raises(ValueError, match="workspace is required"):
+            server._resolve_workspace(None)
+
+
 class TestTools:
     def setup_method(self):
         self._mock = MagicMock()
@@ -93,20 +108,26 @@ class TestTools:
         server.list_repos("ws", "2026-01-01")
         self._mock.repositories.list.assert_called_once_with("ws", "2026-01-01")
 
+    def test_list_repos_uses_env_workspace(self, monkeypatch):
+        monkeypatch.setenv("BITBUCKET_WORKSPACE", "env-ws")
+        self._mock.repositories.list.return_value = []
+        server.list_repos()
+        self._mock.repositories.list.assert_called_once_with("env-ws", None)
+
     def test_get_commit_diff_string(self):
         self._mock.repositories.get_commit_diff.return_value = "diff output"
-        result = server.get_commit_diff("ws", "repo", "abc123")
+        result = server.get_commit_diff("repo", "abc123", workspace="ws")
         self._mock.repositories.get_commit_diff.assert_called_once_with("ws", "repo", "abc123")
         assert result == "diff output"
 
     def test_get_commit_diff_range_string(self):
         self._mock.repositories.get_commit_diff.return_value = "range diff"
-        result = server.get_commit_diff("ws", "repo", "abc..def")
+        result = server.get_commit_diff("repo", "abc..def", workspace="ws")
         assert result == "range diff"
 
     def test_get_commit_diff_list(self):
         self._mock.repositories.get_commit_diff.side_effect = ["diff1", "diff2"]
-        result = server.get_commit_diff("ws", "repo", ["abc", "def"])
+        result = server.get_commit_diff("repo", ["abc", "def"], workspace="ws")
         assert "--- commit abc ---" in result
         assert "diff1" in result
         assert "--- commit def ---" in result
@@ -114,57 +135,64 @@ class TestTools:
 
     def test_get_commit_diff_list_too_long(self):
         with pytest.raises(ValueError, match="commits list must not exceed 50"):
-            server.get_commit_diff("ws", "repo", ["x"] * 51)
+            server.get_commit_diff("repo", ["x"] * 51, workspace="ws")
 
     # --- pull requests ---
 
     def test_list_open_prs(self):
         self._mock.pull_requests.list.return_value = [{"id": 1}]
-        result = server.list_open_prs("ws", "repo")
+        result = server.list_open_prs("repo", workspace="ws")
         self._mock.pull_requests.list.assert_called_once_with("ws", "repo", state="OPEN")
         assert result == [{"id": 1}]
 
+    def test_list_open_prs_uses_env_workspace(self, monkeypatch):
+        monkeypatch.setenv("BITBUCKET_WORKSPACE", "env-ws")
+        self._mock.pull_requests.list.return_value = []
+        server.list_open_prs("repo")
+        self._mock.pull_requests.list.assert_called_once_with("env-ws", "repo", state="OPEN")
+
     def test_get_open_pr_no_branch(self):
         self._mock.pull_requests.get_open.return_value = {"id": 7}
-        result = server.get_open_pr("ws", "repo")
+        result = server.get_open_pr("repo", workspace="ws")
         self._mock.pull_requests.get_open.assert_called_once_with("ws", "repo", None)
         assert result == {"id": 7}
 
     def test_get_open_pr_with_branch(self):
         self._mock.pull_requests.get_open.return_value = None
-        result = server.get_open_pr("ws", "repo", branch="feature/x")
+        result = server.get_open_pr("repo", workspace="ws", branch="feature/x")
         self._mock.pull_requests.get_open.assert_called_once_with("ws", "repo", "feature/x")
         assert result is None
 
     def test_get_open_pr_not_found_returns_none(self):
         self._mock.pull_requests.get_open.side_effect = NotFoundError("no open PRs found")
-        result = server.get_open_pr("ws", "repo")
+        result = server.get_open_pr("repo", workspace="ws")
         assert result is None
+
 
     def test_get_pr(self):
         self._mock.pull_requests.get.return_value = {"id": 5}
-        result = server.get_pr("ws", "repo", 5)
+        result = server.get_pr("repo", 5, workspace="ws")
         self._mock.pull_requests.get.assert_called_once_with("ws", "repo", 5)
         assert result == {"id": 5}
 
     def test_get_pr_diff(self):
         self._mock.pull_requests.get_diff.return_value = "diff --git..."
-        result = server.get_pr_diff("ws", "repo", 5)
+        result = server.get_pr_diff("repo", 5, workspace="ws")
         assert result == "diff --git..."
 
     def test_get_pr_diffstat(self):
         self._mock.pull_requests.get_diffstat.return_value = [{"lines_added": 10}]
-        result = server.get_pr_diffstat("ws", "repo", 5)
+        result = server.get_pr_diffstat("repo", 5, workspace="ws")
         assert result == [{"lines_added": 10}]
 
     def test_get_pr_comments(self):
         self._mock.pull_requests.list_comments.return_value = [{"id": 1}]
-        result = server.get_pr_comments("ws", "repo", 5)
+        result = server.get_pr_comments("repo", 5, workspace="ws")
         assert result == [{"id": 1}]
 
     def test_get_unresolved_pr_comments_default(self):
         self._mock.pull_requests.list_unresolved_comments.return_value = [{"id": 2}]
-        result = server.get_unresolved_pr_comments("ws", "repo", 5)
+        result = server.get_unresolved_pr_comments("repo", 5, workspace="ws")
         self._mock.pull_requests.list_unresolved_comments.assert_called_once_with(
             "ws", "repo", 5, False
         )
@@ -172,14 +200,14 @@ class TestTools:
 
     def test_get_unresolved_pr_comments_inline_only(self):
         self._mock.pull_requests.list_unresolved_comments.return_value = []
-        server.get_unresolved_pr_comments("ws", "repo", 5, inline_only=True)
+        server.get_unresolved_pr_comments("repo", 5, workspace="ws", inline_only=True)
         self._mock.pull_requests.list_unresolved_comments.assert_called_once_with(
             "ws", "repo", 5, True
         )
 
     def test_post_pr_comment_summary(self):
         self._mock.pull_requests.post_comment.return_value = {"id": 99}
-        result = server.post_pr_comment("ws", "repo", 5, "Looks good!")
+        result = server.post_pr_comment("repo", 5, "Looks good!", workspace="ws")
         self._mock.pull_requests.post_comment.assert_called_once_with(
             "ws", "repo", 5, "Looks good!", None, None
         )
@@ -187,29 +215,29 @@ class TestTools:
 
     def test_post_pr_comment_inline(self):
         self._mock.pull_requests.post_comment.return_value = {"id": 100}
-        server.post_pr_comment("ws", "repo", 5, "Fix this", "src/main.py", 42)
+        server.post_pr_comment("repo", 5, "Fix this", workspace="ws", file_path="src/main.py", line=42)
         self._mock.pull_requests.post_comment.assert_called_once_with(
             "ws", "repo", 5, "Fix this", "src/main.py", 42
         )
 
     def test_resolve_pr_comment(self):
-        result = server.resolve_pr_comment("ws", "repo", 5, 99)
+        result = server.resolve_pr_comment("repo", 5, 99, workspace="ws")
         self._mock.pull_requests.resolve_comment.assert_called_once_with("ws", "repo", 5, 99)
         assert result == {"status": "ok"}
 
     def test_approve_pr(self):
-        result = server.approve_pr("ws", "repo", 5)
+        result = server.approve_pr("repo", 5, workspace="ws")
         self._mock.pull_requests.approve.assert_called_once_with("ws", "repo", 5)
         assert result == {"status": "ok"}
 
     def test_decline_pr(self):
         self._mock.pull_requests.decline.return_value = {"id": 5, "state": "DECLINED"}
-        result = server.decline_pr("ws", "repo", 5)
+        result = server.decline_pr("repo", 5, workspace="ws")
         assert result == {"id": 5, "state": "DECLINED"}
 
     def test_merge_pr_defaults(self):
         self._mock.pull_requests.merge.return_value = {"id": 5, "state": "MERGED"}
-        result = server.merge_pr("ws", "repo", 5)
+        result = server.merge_pr("repo", 5, workspace="ws")
         self._mock.pull_requests.merge.assert_called_once_with(
             "ws", "repo", 5, "merge_commit", None, None
         )
@@ -217,21 +245,21 @@ class TestTools:
 
     def test_merge_pr_squash_with_close_source(self):
         self._mock.pull_requests.merge.return_value = {"id": 5, "state": "MERGED"}
-        server.merge_pr("ws", "repo", 5, strategy="squash", close_source_branch=True)
+        server.merge_pr("repo", 5, workspace="ws", strategy="squash", close_source_branch=True)
         self._mock.pull_requests.merge.assert_called_once_with(
             "ws", "repo", 5, "squash", True, None
         )
 
     def test_merge_pr_with_message(self):
         self._mock.pull_requests.merge.return_value = {"id": 5, "state": "MERGED"}
-        server.merge_pr("ws", "repo", 5, message="Merge PR #5")
+        server.merge_pr("repo", 5, workspace="ws", message="Merge PR #5")
         self._mock.pull_requests.merge.assert_called_once_with(
             "ws", "repo", 5, "merge_commit", None, "Merge PR #5"
         )
 
     def test_create_pr_minimal(self):
         self._mock.pull_requests.create.return_value = {"id": 10}
-        result = server.create_pr("ws", "repo", "My PR", "feature/foo", "main")
+        result = server.create_pr("repo", "My PR", "feature/foo", "main", workspace="ws")
         self._mock.pull_requests.create.assert_called_once_with(
             "ws", "repo", "My PR", "feature/foo", "main", None, None, False
         )
@@ -240,11 +268,11 @@ class TestTools:
     def test_create_pr_with_all_options(self):
         self._mock.pull_requests.create.return_value = {"id": 11}
         server.create_pr(
-            "ws",
             "repo",
             "My PR",
             "feature/bar",
             "main",
+            workspace="ws",
             description="A description",
             reviewers=["user1"],
             close_source_branch=True,
