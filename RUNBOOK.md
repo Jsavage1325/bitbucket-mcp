@@ -12,32 +12,55 @@ and runs their own instance.
 
 ### Developer workstations
 
-Install and register the server with Claude Code:
+**Step 1 — authenticate**
+
+If you already use the `bb` CLI, credentials are picked up automatically:
 
 ```bash
-# Option A: published package
-uvx bitbucket-mcp-server
-
-# Option B: local development checkout
-uv run bitbucket-mcp-server
+bb auth login
 ```
 
-Add to `~/.claude/mcp_servers.json`:
+Otherwise export a Bitbucket App Password (or API token):
+
+```bash
+export BITBUCKET_ACCESS_TOKEN=<your-personal-app-password>
+```
+
+**Step 2 — register globally with Claude Code**
+
+```bash
+# With bb CLI auth (no token needed in the command)
+claude mcp add --scope user bitbucket -- uvx --from mini-bitbucket-mcp bitbucket-mcp-server
+
+# Or pass the token directly
+claude mcp add --scope user -e BITBUCKET_ACCESS_TOKEN=<token> bitbucket -- uvx --from mini-bitbucket-mcp bitbucket-mcp-server
+```
+
+`--scope user` writes to `~/.claude.json` so the server is available in every
+project, not just the current directory.
+
+**Step 3 — verify**
+
+```bash
+claude mcp list          # should show "bitbucket"
+claude mcp get bitbucket # shows the full config
+```
+
+#### Project-level config (alternative)
+
+Drop a `.mcp.json` at the repo root to use the server only within that project.
+This repo includes one that reads credentials from `~/.config/bb/tokens.json` automatically:
 
 ```json
 {
-  "bitbucket": {
-    "command": "uvx",
-    "args": ["bitbucket-mcp-server"],
-    "env": {
-      "BITBUCKET_ACCESS_TOKEN": "your-personal-token"
+  "mcpServers": {
+    "bitbucket": {
+      "command": "uvx",
+      "args": ["--from", "mini-bitbucket-mcp", "bitbucket-mcp-server"]
     }
   }
 }
 ```
-
-Alternatively, if `bb auth login` has already been run, the server will read credentials
-from `~/.config/bb/config.toml` automatically and no env var is needed.
 
 ### EC2 workers (e.g. DeltaGuard)
 

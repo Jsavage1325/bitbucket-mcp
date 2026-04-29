@@ -102,7 +102,7 @@ dev = [{ name = "pytest", specifier = ">=8.0" }]
 [[package]]
 name = "bitbucket-sdk"
 version = "0.1.0"
-source = { git = "https://github.com/jsavage1325/bitbucket-sdk.git#89f87cfe7068063a93168c1be1b6e946dde33f47" }
+source = { git = "https://github.com/jsavage1325/bitbucket-sdk.git#8b996e708bab0698906503a325c12338ff9b35e0" }
 dependencies = [
     { name = "requests" },
     { name = "tenacity" },
